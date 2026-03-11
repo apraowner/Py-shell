@@ -158,16 +158,17 @@ collect_cluster_rows() {
     fi
 
     echo "${clusters_json}" | jq -c '.[]' | while IFS= read -r cluster; do
-      local cluster_name location
+      local cluster_name location cluster_endpoint
       cluster_name="$(echo "${cluster}" | jq -r '.name')"
       location="$(echo "${cluster}" | jq -r '.location // .zone // empty')"
+      cluster_endpoint="$(echo "${cluster}" | jq -r '.endpoint // empty')"
 
       if [[ -z "${location}" ]]; then
         log "Skipping cluster ${cluster_name}: location not found"
         continue
       fi
 
-      log "Connecting to cluster: ${cluster_name} (${location})"
+      log "Connecting to cluster: ${cluster_name} (${location}) endpoint=${cluster_endpoint}"
 
       if ! gcloud container clusters get-credentials \
         "${cluster_name}" \
@@ -217,14 +218,14 @@ collect_cluster_rows() {
 
             running_pods="$(echo "${pods_json}" | jq '[.items[] | select(.status.phase=="Running")] | length')"
 
-            python3 - <<'PY' "${OUTPUT_CSV}" "${project_id}" "${cluster_name}" "${namespace}" "${type_singular}" "${workload_name}" "${running_pods}"
+            python3 - <<'PY' "${OUTPUT_CSV}" "${project_id}" "${cluster_name}" "${namespace}" "${type_singular}" "${workload_name}" "${running_pods}" "${cluster_endpoint}"
 import csv
 import sys
 
-path, a, b, c, d, e, f = sys.argv[1:]
+path, a, b, c, d, e, f, g = sys.argv[1:]
 with open(path, "a", newline="", encoding="utf-8") as fp:
     writer = csv.writer(fp)
-    writer.writerow([a, b, c, d, e, f])
+    writer.writerow([a, b, c, d, e, f, g])
 PY
           done
         done
