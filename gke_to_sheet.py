@@ -184,6 +184,7 @@ def collect_rows() -> List[List[Any]]:
 
         for cluster in clusters:
             cluster_name = cluster["name"]
+            cluster_endpoint = cluster.get("endpoint", "")
 
             # GKE API may return location or zone depending on cluster type
             location = cluster.get("location") or cluster.get("zone")
@@ -191,7 +192,12 @@ def collect_rows() -> List[List[Any]]:
                 print(f"Skipping cluster {cluster_name}: location not found", file=sys.stderr)
                 continue
 
-            print(f"Connecting to cluster: {cluster_name} ({location})", file=sys.stderr)
+            print(
+                f"Connecting to cluster: {cluster_name} ({location}) "
+                f"endpoint={cluster_endpoint}",
+                file=sys.stderr
+            )
+
             try:
                 get_cluster_credentials(project_id, cluster_name, location)
             except Exception as e:
@@ -223,12 +229,13 @@ def collect_rows() -> List[List[Any]]:
                             running_pods = get_running_pods(namespace, selector)
                         except Exception as e:
                             print(
-                                f"Failed pod count for {cluster_name}/{namespace}/{workload_name}: {e}",
+                                f"Failed pod count for "
+                                f"{cluster_name}/{namespace}/{workload_name}: {e}",
                                 file=sys.stderr
                             )
                             running_pods = 0
 
-                        # Columns A-F
+                        # Columns A-G
                         row = [
                             project_id,         # A Project ID
                             cluster_name,       # B Cluster Name
@@ -236,11 +243,11 @@ def collect_rows() -> List[List[Any]]:
                             workload_type[:-1], # D Type -> deployment/statefulset/daemonset
                             workload_name,      # E K8s Object
                             running_pods,       # F Pods Running
+                            cluster_endpoint,   # G Cluster Endpoint
                         ]
                         rows.append(row)
 
     return rows
-
 
 def get_sheets_service():
     """Build Google Sheets API service using service account."""
@@ -265,7 +272,7 @@ def write_rows_to_sheet(rows: List[List[Any]]) -> None:
     service = get_sheets_service()
 
     if CLEAR_EXISTING_DATA:
-        clear_range(service, SPREADSHEET_ID, f"{SHEET_NAME}!A2:F")
+        clear_range(service, SPREADSHEET_ID, f"{SHEET_NAME}!A2:G")
 
     if not rows:
         print("No rows collected. Nothing to write.", file=sys.stderr)
